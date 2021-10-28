@@ -291,7 +291,7 @@
         (doseq [row rows]
           (doseq [k row-keys]
             (print (format (get fast-fmt-strings k) (get row k))))
-          (println (format  "%n")))))))
+          (print (format  "%n")))))))
 
 (defn gc-stats
   []
