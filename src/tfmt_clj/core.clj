@@ -49,7 +49,7 @@
     (mapv (fn [id1 id2 id3 id4 id5]
             {:primary_key (+ 1000000 id1)
              :the_text (random-string (+ 4 (rand-int (mod id2 12))))
-             :the_timestamp (Date. (+ (.getTime now) id3))
+             :the_timestamp (Date. ^long (+ (.getTime now) id3))
              :the_bool (if (= 0 (mod id4 2)) true false)
              :the_float_value (float id5)})
           (range 0 n)
@@ -292,6 +292,131 @@
           (doseq [k row-keys]
             (print (format (get fast-fmt-strings k) (get row k))))
           (print (format  "%n")))))))
+
+(defn report-rows-format-wl
+  "Generate N rows and print them nicely to a file F."
+  [n f]
+  (let [rows (generate-rows n)          ;potentially lots of data
+        row-keys (keys (first rows))    ;this will be the order of columns
+
+        ;; [["" "a"] ["b" "c"] ...]
+        narrow-headers (normalize-headers (narrow-header-info row-keys))
+        n-header-lines (apply max (mapv count narrow-headers))
+        n-columns (count row-keys)
+        rows (stringify-values rows str)    ;let old rows be GC'd after this
+        max-value-widths (value-max-width rows)
+
+        ;; Header width [n] for  row-keys [n]
+        max-header-widths (mapv (fn [col-headers]
+                                  (apply max (mapv count col-headers)))
+                                narrow-headers)
+        ;; header widths as a map keyed by row keys
+        header-width-map (zipmap row-keys max-header-widths)
+
+        ;; Merge header widths with value widths
+        max-widths (merge-with max max-value-widths header-width-map)
+
+        fmt-strings (reduce (fn [result k]
+                              (assoc result k (str "~" (get max-widths k) "a ")))
+                            {}
+                            row-keys)
+
+        ;; Map keyed by row-keys, valued by format directives for each column
+        fast-fmt-strings (reduce (fn [result k]
+                                   (assoc result k (str "%-" (get max-widths k) "s ")))
+                                 {}
+                                 row-keys)]
+
+    (with-open [os (clojure.java.io/writer f)]
+      (binding [*out* os]
+      ;;; Emit the column headers, which may require multiple lines
+        (dotimes [line-number n-header-lines]
+          (dotimes [column-index n-columns]
+            (cl-format os
+                       (get fmt-strings (nth row-keys column-index))
+                       (nth (nth narrow-headers column-index) line-number)))
+          (cl-format os "~%"))
+
+        ;; A row of dashes
+        (doseq [k row-keys]
+          (cl-format os "~? " (str "~" (get max-widths k) ",,,'-a") "-"))
+        (.write os (format  "%n"))
+
+        ;; Now the values
+        (doseq [row rows]
+          (doseq [k row-keys]
+            (.write os (format (get fast-fmt-strings k) (get row k))))
+          (.write os (format  "%n")))))))
+
+;;~600ms.
+
+(defn generate-rows-seq
+  "Return a sequence of N maps acting as pretend rows from a database"
+  [n]
+  (let [now (Date.)]
+    (map (fn [id]
+           {:primary_key (+ 1000000 id)
+            :the_text (random-string (+ 4 (rand-int (mod id 12))))
+            :the_timestamp (Date. ^long (+ (.getTime now) id))
+            :the_bool (if (= 0 (mod id 2)) true false)
+            :the_float_value (float id)})
+         (range 0 n))))
+
+(defn report-rows-format-wl-seq
+  "Generate N rows and print them nicely to a file F."
+  [n f]
+  (let [rows     (generate-rows-seq n)          ;potentially lots of data
+        row-keys (keys (first rows))    ;this will be the order of columns
+
+        ;; [["" "a"] ["b" "c"] ...]
+        narrow-headers (normalize-headers (narrow-header-info row-keys))
+        n-header-lines (apply max (mapv count narrow-headers))
+        n-columns (count row-keys)
+        rows (stringify-values rows str)    ;let old rows be GC'd after this
+        max-value-widths (value-max-width rows)
+
+        ;; Header width [n] for  row-keys [n]
+        max-header-widths (mapv (fn [col-headers]
+                                  (apply max (mapv count col-headers)))
+                                narrow-headers)
+        ;; header widths as a map keyed by row keys
+        header-width-map (zipmap row-keys max-header-widths)
+
+        ;; Merge header widths with value widths
+        max-widths (merge-with max max-value-widths header-width-map)
+
+        fmt-strings (reduce (fn [result k]
+                              (assoc result k (str "~" (get max-widths k) "a ")))
+                            {}
+                            row-keys)
+
+        ;; Map keyed by row-keys, valued by format directives for each column
+        fast-fmt-strings (reduce (fn [result k]
+                                   (assoc result k (str "%-" (get max-widths k) "s ")))
+                                 {}
+                                 row-keys)]
+
+    (with-open [os (clojure.java.io/writer f)]
+      (binding [*out* os]
+      ;;; Emit the column headers, which may require multiple lines
+        (dotimes [line-number n-header-lines]
+          (dotimes [column-index n-columns]
+            (cl-format os
+                       (get fmt-strings (nth row-keys column-index))
+                       (nth (nth narrow-headers column-index) line-number)))
+          (cl-format os "~%"))
+
+        ;; A row of dashes
+        (doseq [k row-keys]
+          (cl-format os "~? " (str "~" (get max-widths k) ",,,'-a") "-"))
+        (.write os (format  "%n"))
+
+        ;; Now the values
+        (doseq [row rows]
+          (doseq [k row-keys]
+            (.write os (format (get fast-fmt-strings k) (get row k))))
+          (.write os (format  "%n")))))))
+;;~430ms
 
 (defn gc-stats
   []
