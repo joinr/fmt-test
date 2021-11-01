@@ -186,6 +186,8 @@
           (cl-format os (get fmt-strings k) (get row k)))
         (cl-format os "~%")))))
 
+;;~8788ms yikes!
+
 ;;2x as fast, still slow.
 (defn report-rows-compiled
   "Generate N rows and print them nicely to a file F."
@@ -293,6 +295,8 @@
             (print (format (get fast-fmt-strings k) (get row k))))
           (print (format  "%n")))))))
 
+;;~890 ms, 10x, still blech
+
 (defn report-rows-format-wl
   "Generate N rows and print them nicely to a file F."
   [n f]
@@ -348,7 +352,7 @@
             (.write os (format (get fast-fmt-strings k) (get row k))))
           (.write os (format  "%n")))))))
 
-;;~600ms.
+;;~611ms, shaving.
 
 (defn generate-rows-seq
   "Return a sequence of N maps acting as pretend rows from a database"
